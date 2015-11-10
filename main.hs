@@ -3,6 +3,10 @@ data Labeled a
 data LIO a
 data LIORef a
 
+instance Monad LIO where
+  return = undefined
+  (>>=) = undefined
+
 label :: Label -> a -> LIO (Labeled a)
 label = undefined
 unlabel :: Labeled a -> LIO a
@@ -32,20 +36,22 @@ data Term =
 data NewLabeled a =
     NL0 a
   | NL1 (Labeled (NewLabeled a))
+{-
 instance Monad NewLabeled where
   return = NL0
   NL0 a >>= c = c a
   NL1 lna >>= c = do
-    k <- labelOf lnx
+    k <- labelOf lna
     lnb <- toLabeled k $ do
       na <- unlabel lna
       na >>= c
     return $ NL1 lnb
+-}
 
 openUp :: NewLabeled a -> (a -> LIO (NewLabeled b)) -> LIO (NewLabeled b)
 openUp (NL0 a) c = c a
 openUp (NL1 lna) c = do
-  k <- labelOf lna
+  let k = labelOf lna
   lnb <- toLabeled k $ do
     na <- unlabel lna
     openUp na c
@@ -72,7 +78,7 @@ eval e (Lam x t) = return $ NL0 $ FnVal f where
 eval e (App t1 t2) = do
   v1 <- eval e t1
   v2 <- eval e t2
-  openUp v1 $ \f1 ->
+  openUp v1 $ \(FnVal f1) ->
     f1 v2
 eval e (Const v) = return v
 
