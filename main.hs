@@ -30,15 +30,33 @@ data Term =
   | Const Value                -- Constants
 
 data NewLabeled a =
-    Unlabeled a
-  | NotUnlabeled (Labeled (NewLabeled a))
+    NL0 a
+  | NL1 (Labeled (NewLabeled a))
+instance Monad NewLabeled where
+  return = NL0
+  NL0 a >>= c = c a
+  NL1 lna >>= c = do
+    k <- labelOf lnx
+    lnb <- toLabeled k $ do
+      na <- unlabel lna
+      na >>= c
+    return $ NL1 lnb
+
+openUp :: NewLabeled a -> (a -> LIO (NewLabeled b)) -> LIO (NewLabeled b)
+openUp (NL0 a) c = c a
+openUp (NL1 lna) c = do
+  k <- labelOf lna
+  lnb <- toLabeled k $ do
+    na <- unlabel lna
+    openUp na c
+  return $ NL1 lnb
 
 -- Runtime data structures.
 data RawValue =
     CharVal Char               -- Characters
   | LocVal (LIORef Value)      -- Mutable references
   | FnVal (Value -> Action)    -- Functions
-type Value  = Labeled RawValue
+type Value  = NewLabeled RawValue
 type Action = LIO Value
 type Env    = String -> Value
 
@@ -49,19 +67,16 @@ extend e x v y | x == y    = v
 
 eval :: Env -> Term -> Action
 eval e (Var x) = return $ e x
-eval e (Lam x t) = return $ label bottomLabel (FnVal f) where
+eval e (Lam x t) = return $ NL0 $ FnVal f where
   f v = eval (extend e x v) t
 eval e (App t1 t2) = do
   v1 <- eval e t1
   v2 <- eval e t2
-  let k = labelOf v1
-  toLabeled k $ do
-    f1 <- unlabel v1
-    v3 <- f1 v2
-    
+  openUp v1 $ \f1 ->
+    f1 v2
 eval e (Const v) = return v
 
-
+{-
 -- Interpreter.
 eval :: Env -> Term -> Action
 eval e (Var x)     = return $ e x
@@ -106,6 +121,7 @@ printChar =
       hPutCharF h (return c)
       hCloseF h
       return $ return $ CharVal c
+-}
 
 ------------------------------
 -- Main program. (unimportant)
