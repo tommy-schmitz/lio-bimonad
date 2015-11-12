@@ -1,0 +1,98 @@
+So there's a thing called a half-monad. A dependent monad.
+Its bind requires the services of an enclosing monad.
+This pattern can't use Haskell's 'do' notation.
+
+1 monad
+  Security primitives are I/O actions.
+  "Label structure" is statically known -- i.e., can't have label stacks
+  LIO uses this method.
+1.5 monad
+  "Labeled" things could be totally unlabeled, or be a stack of labels.
+  No 'prod'. Security primitives are I/O actions.
+2.5 monad
+  One half-monad called Tree.
+  One monad called F.
+  One monad called FIO.
+  Security primitives are in F.
+  IO primitives are in FIO.
+  'prod' lifts F into FIO.
+
+
+List:
+  Improve performance in:
+    Library code
+    semantics
+  exceptions in:
+    semantics (done ish)
+    library code
+  rewrite interpreter to use LIO (done)
+    Results: (above)
+  delimited continuations
+
+Meeting plan
+  Show optimized semantics
+    Haskell trouble: data ctor "Bind" won't work
+  Show LIO-based interpreter
+    LIO trouble: we need join for label-stacks
+    Naturally leads to 1.5-monad solution
+    Our Faceted is 2.5-monad solution with lifting
+  Design decision: monolithic or modular?
+    1.5 monads is fundamentally monolithic
+    2.5 monads is toward modular
+    delimited continuations is logical progression of modularity
+  Show how delimited continuations does exceptions?
+
+
+-- LIO
+data Labeled a
+labelOf     :: Labeled a -> Label
+data LIO a
+instance Monad LIO
+label       :: Label -> a -> LIO (Labeled a)
+unlabel     :: Labeled a -> LIO a
+toLabeled   :: Label -> LIO a -> LIO (Labeled a)
+data LIORef a
+newLIORef   :: Label -> a -> LIO (LIORef a)
+readLIORef  :: LIORef a -> LIO a
+writeLIORef :: LIORef a -> a -> LIO ()
+
+-- The functor+none+monad pattern
+data XFunctor a
+data XIO a
+instance Monad XIO
+makeFunctor :: Label -> ... -> XIO (XFunctor a)    --label
+force       :: XFunctor a -> XIO a                 --unlabel
+delay       :: XIO a -> XIO (XFunctor a)           --toLabeled
+data XIORef
+newXIORef   :: a -> XIO (XIORef (XFunctor a))
+readLIORef  :: XIORef a -> LIO a
+writeLIORef :: XIORef a -> a -> LIO ()
+
+-- The halfmonad+none+monad pattern
+data XHalfMonad a
+data XIO a
+instance Monad XIO
+ret           :: a -> XIO (XHalfMonad a)
+bind          :: XHalfMonad a -> (b -> XIO (XHalfMonad b)) ->
+                   XIO (XHalfMonad b)
+makeHalfMonad :: Label -> ... -> XIO (XHalfMonad a)
+newXIORef ... etc ...
+
+-- The halfmonad+monad+monad pattern
+data XHalfMonad a
+data XPure
+instance Monad XPure
+ret           :: a -> XPure (XHalfMonad a)
+bind          :: XHalfMonad a -> (b -> XPure (XHalfMonad b)) ->
+                   XPure (XHalfMonad b)
+makeHalfMonad :: Label -> ... -> XPure (XHalfMonad a)
+data XIO a
+swap          :: XPure (XIO a) -> XIO (XPure a)  --lift pure into impure
+newXIORef ... etc ...
+
+-- The [broken] monad+none+monad pattern
+data XMonad a
+instance Monad XMonad
+
+data XIO
+newXIORef ... etc ...
