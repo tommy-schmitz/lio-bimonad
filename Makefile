@@ -1,2 +1,2 @@
 all:
-	ghc -o run main.hs
+	ghc -o run main.hs -XEmptyDataDecls -XPolymorphicComponents

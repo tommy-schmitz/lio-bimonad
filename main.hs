@@ -33,12 +33,12 @@ data Term =
   | App Term Term
   | Const Value                -- Constants
 
-type Labeled a = (Label, a)
+--type Labeled a = (Label, a)
 
 data NewLabeled a =
     NL0 a
   | NL1 (Labeled (NewLabeled a))
---  | Bind (NewLabeled b) (b -> NewLabeled a)
+  | Bind (forall b. (NewLabeled b, b -> NewLabeled a))
 
 {-
 instance Monad NewLabeled where
@@ -52,7 +52,7 @@ instance Monad NewLabeled where
     return $ NL1 lnb
 -}
 
-openUp :: (MonadReader m) => NewLabeled a -> (a -> m (NewLabeled b)) -> m (NewLabeled b)
+openUp :: NewLabeled a -> (a -> LIO (NewLabeled b)) -> LIO (NewLabeled b)
 openUp (NL0 a) c = c a
 openUp (NL1 lna) c = do
   let k = labelOf lna
